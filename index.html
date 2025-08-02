@@ -10,9 +10,8 @@
       crossorigin=""/>
 
 <style>
-/* map fills entire iframe / browser window */
+/* fill whole iframe / screen */
 html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-serif;}
-#container{height:100%;width:100%;margin:0;padding:0;}
 #map{height:100%;width:100%;background:#121212;position:relative;cursor:crosshair;}
 
 .leaflet-control-zoom{top:10px;right:10px;left:auto!important;}
@@ -23,12 +22,12 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
 }
 .coord-label::before{display:none!important;}
 
-/* overlay UI */
+/* overlay ui */
 #arrows,#copy,#toast,#ver{position:absolute;z-index:401}
 #arrows{bottom:10px;left:10px;display:grid;grid-template-areas:
-        ".   up    ."
-        "left  .  right"
-        ".  down   .";grid-gap:4px;}
+        ". up ."
+        "left . right"
+        ". down .";grid-gap:4px;}
 #arrows button,#copy{background:#1e1e1e;border:1px solid #444;color:#eee;
                      width:38px;height:38px;border-radius:4px;cursor:pointer;}
 #arrows button[data-dir="up"]   {grid-area:up}
@@ -50,19 +49,17 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
 </head>
 <body>
 
-<div id="container">
-  <div id="map">
-    <div id="arrows">
-      <button data-dir="up">↑</button>
-      <button data-dir="left">←</button>
-      <button data-dir="right">→</button>
-      <button data-dir="down">↓</button>
-    </div>
-
-    <button id="copy" disabled>Copy Coordinates</button>
-    <div id="toast">Copied</div>
-    <div id="ver">v9</div>
+<div id="map">
+  <div id="arrows">
+    <button data-dir="up">↑</button>
+    <button data-dir="left">←</button>
+    <button data-dir="right">→</button>
+    <button data-dir="down">↓</button>
   </div>
+
+  <button id="copy" disabled>Copy Coordinates</button>
+  <div id="toast">Copied</div>
+  <div id="ver">v10</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -73,14 +70,14 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
         toast  =document.getElementById('toast'),
         arrows =document.getElementById('arrows');
 
-  const preload=new Image();
-  preload.src=imgPath;
-  preload.onload=()=>init(preload.naturalWidth,preload.naturalHeight);
+  const base=new Image();
+  base.src=imgPath;
+  base.onload=()=>init(base.naturalWidth,base.naturalHeight);
 
   const showToast=()=>{toast.style.opacity='1';setTimeout(()=>toast.style.opacity='0',800);};
 
   function init(w,h){
-    /* marker images */
+    /* default marker images */
     L.Icon.Default.mergeOptions({
       iconRetinaUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
       iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -94,14 +91,21 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
       inertia:true,maxBounds:bounds,maxBoundsViscosity:1
     });
     L.imageOverlay(imgPath,bounds).addTo(map);
-    map.fitBounds(bounds); map.setZoom(map.getZoom()+1); map.doubleClickZoom.disable();
+    map.fitBounds(bounds);map.setZoom(map.getZoom()+1);map.doubleClickZoom.disable();
+
+    /* explicit icon object (same as your working baseline) */
+    const def=L.Icon.Default.prototype.options;
+    const pin=L.icon({
+      iconUrl:def.iconUrl,iconRetinaUrl:def.iconRetinaUrl,shadowUrl:def.shadowUrl,
+      iconSize:def.iconSize,iconAnchor:[12,41],tooltipAnchor:[0,-24]
+    });
 
     let marker=null,lastXY='';
     const clamp=(v,max)=>Math.max(0,Math.min(max,v));
 
-    function update(latlng){
-      const x=clamp(Math.round(latlng.lng),w),
-            y=clamp(Math.round(latlng.lat),h);
+    function update(ll){
+      const x=clamp(Math.round(ll.lng),w),
+            y=clamp(Math.round(ll.lat),h);
       lastXY=`${x},${y}`;
       marker.getTooltip()
         ? marker.setTooltipContent(lastXY)
@@ -110,14 +114,15 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
     }
 
     map.on('click',e=>{
-      const ll=[clamp(e.latlng.lat,h),clamp(e.latlng.lng,w)];
+      const ll=L.latLng(clamp(e.latlng.lat,h),clamp(e.latlng.lng,w));
       if(!marker){
-        marker=L.marker(ll,{draggable:true}).addTo(map)
+        marker=L.marker(ll,{icon:pin,draggable:true}).addTo(map)
                .on('drag',ev=>update(ev.latlng));
       }else marker.setLatLng(ll);
       update(marker.getLatLng());
     });
 
+    /* arrow navigation */
     arrows.addEventListener('click',ev=>{
       const d=ev.target.dataset.dir;if(!d)return;
       const dx=d==='left'?-100:d==='right'?100:0,
@@ -127,9 +132,10 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
     });
     L.DomEvent.disableClickPropagation(arrows);
 
+    /* copy to clipboard */
     copyBtn.addEventListener('click',ev=>{
       ev.stopPropagation();
-      navigator.clipboard?.writeText(lastXY).then(showToast,()=>{ /* ignore failure */ });
+      navigator.clipboard?.writeText(lastXY).then(showToast,showToast);
     });
   }
 })();
