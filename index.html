@@ -11,28 +11,53 @@
 
 <style>
   html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-serif;}
-  #map{height:100%;width:100%;background:#121212;}          /* dark backdrop */
-  .leaflet-control-zoom{top:10px;right:10px;left:auto;}     /* move zoom buttons */
+  #container{width:90vw;max-width:900px;margin:0 auto;padding-top:10px;}
+  #map{height:70vh;width:100%;background:#121212;}
+  /* zoom buttons top-right of map */
+  .leaflet-control-zoom{top:10px;right:10px;left:auto!important;}
+  /* tooltip styling */
   .coord-label{
       background:rgba(20,20,20,.85);
       border:none;
       color:#fff;
       font-family:monospace;
-      padding:2px 4px;
-      border-radius:3px;
+      padding:2px 4px;border-radius:3px;
   }
+  /* external controls */
+  #ctrls{display:flex;justify-content:space-between;align-items:center;margin-top:8px;}
+  #arrows button,#copy{background:#1e1e1e;border:1px solid #444;color:#eee;
+                       padding:6px 10px;margin:2px;border-radius:4px;cursor:pointer;}
+  #arrows{display:grid;grid-template:"up up" "left right" "down down" / auto auto;}
+  #arrows button[data-dir="up"]   {grid-area:up}
+  #arrows button[data-dir="down"] {grid-area:down}
+  #arrows button[data-dir="left"] {grid-area:left}
+  #arrows button[data-dir="right"]{grid-area:right}
 </style>
 </head>
 <body>
 
-<div id="map"></div>
+<div id="container">
+  <div id="map"></div>
+
+  <div id="ctrls">
+    <div id="arrows">
+      <button data-dir="up">↑</button>
+      <button data-dir="down">↓</button>
+      <button data-dir="left">←</button>
+      <button data-dir="right">→</button>
+    </div>
+    <button id="copy" disabled>Copy X,Y</button>
+  </div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
 <script>
 (function(){
-  const imgPath='hagga-basin.png';
+  const imgPath='hagga-basin.png';          // image file
+  const copyBtn=document.getElementById('copy');
 
+  /* load image to read native size */
   const img=new Image();
   img.src=imgPath;
   img.onload=()=>init(img.naturalWidth,img.naturalHeight);
@@ -40,41 +65,57 @@
   function init(w,h){
     const bounds=[[0,0],[h,w]];
     const map=L.map('map',{
-      crs: L.CRS.Simple,
-      minZoom:-2,
-      maxZoom:4,
-      attributionControl:false,
-      zoomControl:true,
-      inertia:true
+      crs:L.CRS.Simple,minZoom:-2,maxZoom:4,
+      attributionControl:false,zoomControl:true,inertia:true
     });
-
     L.imageOverlay(imgPath,bounds).addTo(map);
     map.fitBounds(bounds);
 
-    let marker=null;
+    /* marker icon with anchor at tip */
+    const def=L.Icon.Default.prototype.options;
+    const pinIcon=L.icon({
+      iconUrl: def.iconUrl,
+      iconRetinaUrl:def.iconRetinaUrl,
+      shadowUrl:def.shadowUrl,
+      iconSize:def.iconSize,
+      iconAnchor:[12,41],        // bottom-center
+      popupAnchor:[0,-41],       // not used
+      tooltipAnchor:[8,-46]      // near tip
+    });
 
-    function updateCoords(latlng){
-      const x=Math.round(latlng.lng);
-      const y=Math.round(latlng.lat);
+    let marker=null, lastXY='';
+
+    function setLabel(latlng){
+      const x=Math.round(latlng.lng), y=Math.round(latlng.lat);
+      lastXY=`${x},${y}`;
       if(!marker.getTooltip()){
-        marker.bindTooltip('',{
-          permanent:true,
-          direction:'right',
-          offset:[10,-10],
-          className:'coord-label'
-        });
+        marker.bindTooltip('',{permanent:true,className:'coord-label',direction:'right'});
       }
-      marker.setTooltipContent(`${x},${y}`);
+      marker.setTooltipContent(lastXY);
+      copyBtn.disabled=false;
     }
 
     map.on('click',e=>{
       if(!marker){
-        marker=L.marker(e.latlng,{draggable:true}).addTo(map);
-        marker.on('drag',ev=>updateCoords(ev.latlng));
-      }else{
-        marker.setLatLng(e.latlng);
-      }
-      updateCoords(e.latlng);
+        marker=L.marker(e.latlng,{icon:pinIcon,draggable:true}).addTo(map);
+        marker.on('drag',ev=>setLabel(ev.latlng));
+      }else marker.setLatLng(e.latlng);
+      setLabel(e.latlng);
+    });
+
+    /* panning buttons */
+    const step=100;                    // pixels per press
+    document.getElementById('arrows').addEventListener('click',ev=>{
+      if(ev.target.tagName!=='BUTTON')return;
+      const dir=ev.target.dataset.dir;
+      const dx=dir==='left'?-step:dir==='right'?step:0;
+      const dy=dir==='up'?-step:dir==='down'?step:0;
+      map.panBy([dx,dy],{animate:true,duration:0.25});
+    });
+
+    /* copy coords */
+    copyBtn.addEventListener('click',()=>{
+      navigator.clipboard.writeText(lastXY).catch(()=>{});
     });
   }
 })();
