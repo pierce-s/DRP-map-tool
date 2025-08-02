@@ -13,12 +13,11 @@
 html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-serif;}
 #container{width:90vw;max-width:900px;margin:0 auto;padding-top:10px;}
 #map{height:70vh;width:100%;background:#121212;position:relative;cursor:crosshair;}
-/* keep map inside */
 .leaflet-control-zoom{top:10px;right:10px;left:auto!important;}
+.leaflet-marker-icon{cursor:crosshair;}           /* keep crosshair even over pin */
 .coord-label{background:rgba(20,20,20,.85);border:none;color:#fff;
              font-family:monospace;padding:2px 4px;border-radius:3px;
              pointer-events:none;}
-/* overlay controls */
 #arrows,#copy{position:absolute;z-index:401}
 #arrows{bottom:10px;left:10px;display:grid;grid-template-areas:
         ".   up    ."
@@ -61,7 +60,6 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
   const toast  =document.getElementById('toast');
   const arrows =document.getElementById('arrows');
 
-  /* read native size */
   const img=new Image();
   img.src=imgPath;
   img.onload=()=>init(img.naturalWidth,img.naturalHeight);
@@ -69,48 +67,56 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
   function init(w,h){
     const bounds=[[0,0],[h,w]];
     const map=L.map('map',{
-      crs:L.CRS.Simple,minZoom:-2,maxZoom:4,
+      crs:L.CRS.Simple,minZoom:-1,maxZoom:4,      // limit zoom-out
       attributionControl:false,zoomControl:true,
       inertia:true,maxBounds:bounds,maxBoundsViscosity:1
     });
     L.imageOverlay(imgPath,bounds).addTo(map);
     map.fitBounds(bounds);
-    map.setZoom(map.getZoom()+1);          // start one level closer
-    map.doubleClickZoom.disable();         // avoid accidental zoom from arrow dbl-click
+    map.setZoom(map.getZoom()+1);                 // start closer
+    map.doubleClickZoom.disable();
 
     let marker=null,lastXY='';
 
+    function clamp(val,max){return Math.max(0,Math.min(max,val));}
+
     function updateLabel(latlng){
-      const x=Math.round(latlng.lng),y=Math.round(latlng.lat);
+      /* clamp to image bounds */
+      const x=clamp(Math.round(latlng.lng),w),
+            y=clamp(Math.round(latlng.lat),h);
       lastXY=`${x},${y}`;
-      if(!marker.getTooltip())
-        marker.bindTooltip(lastXY,{permanent:true,className:'coord-label',
-                                   offset:[0,-20],direction:'top'});
-      else
-        marker.setTooltipContent(lastXY);
+      if(!marker.getTooltip()){
+        marker.bindTooltip(lastXY,{
+          permanent:true,className:'coord-label',
+          offset:[0,-22],direction:'top'
+        });
+      }else marker.setTooltipContent(lastXY);
       copyBtn.disabled=false;
     }
 
     map.on('click',e=>{
+      const clamped=[clamp(e.latlng.lat,h),clamp(e.latlng.lng,w)];
       if(!marker){
-        marker=L.marker(e.latlng,{draggable:true}).addTo(map);
+        marker=L.marker(clamped,{draggable:true}).addTo(map);
         marker.on('drag',ev=>updateLabel(ev.latlng));
-      }else marker.setLatLng(e.latlng);
-      updateLabel(e.latlng);
+      }else marker.setLatLng(clamped);
+      updateLabel(marker.getLatLng());
     });
 
-    /* arrow navigation */
+    /* arrow panning */
     const step=100;
     arrows.addEventListener('click',ev=>{
       const dir=ev.target.dataset.dir;if(!dir)return;
       const dx=dir==='left'?-step:dir==='right'?step:0,
             dy=dir==='up'?-step:dir==='down'?step:0;
       map.panBy([dx,dy],{duration:0.25});
+      ev.stopPropagation();
     });
     L.DomEvent.disableClickPropagation(arrows);
 
-    /* copy with toast */
-    copyBtn.addEventListener('click',()=>{
+    /* copy */
+    copyBtn.addEventListener('click',ev=>{
+      ev.stopPropagation();
       navigator.clipboard.writeText(lastXY).then(()=>{
         toast.style.opacity='1';
         setTimeout(()=>toast.style.opacity='0',800);
