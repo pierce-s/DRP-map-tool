@@ -10,7 +10,7 @@
       crossorigin=""/>
 
 <style>
-/* map fills the whole iframe */
+/* map fills the entire iframe */
 html,body,#map{margin:0;height:100%;width:100%;background:#121212;color:#eee;font:14px/1.4 sans-serif;}
 #map{position:relative;cursor:crosshair;}
 
@@ -36,7 +36,6 @@ html,body,#map{margin:0;height:100%;width:100%;background:#121212;color:#eee;fon
 #arrows button[data-dir="right"]{grid-area:right}
 
 #copy{bottom:10px;right:10px;padding:6px 12px;width:auto}
-#copy.flash{background:#145f3c;border-color:#1c7d50;}
 
 /* centred toast */
 #toast{top:50%;left:50%;transform:translate(-50%,-50%);
@@ -66,29 +65,25 @@ html,body,#map{margin:0;height:100%;width:100%;background:#121212;color:#eee;fon
         toast  =document.getElementById('toast'),
         arrows =document.getElementById('arrows');
 
-  /* preload image to get native size */
+  /* preload to get native size */
   const im=new Image();
   im.src=imgPath;
   im.onload=()=>init(im.naturalWidth,im.naturalHeight);
 
-  /* show / hide toast */
-  function showToast(){
-    toast.style.opacity='1';
-    setTimeout(()=>toast.style.opacity='0',800);
-  }
+  /* toast helpers */
+  const showToast=()=>{ toast.style.opacity='1'; setTimeout(()=> toast.style.opacity='0',800); };
 
-  /* fallback copy for sandboxed iframes (execCommand still works) */
-  function fallbackCopy(text){
+  const fallbackCopy=text=>{
     const ta=document.createElement('textarea');
     ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
     document.body.appendChild(ta);ta.select();document.execCommand('copy');
     document.body.removeChild(ta);
     showToast();
-  }
+  };
 
   function init(w,h){
 
-    /* ensure default pin images load */
+    /* ensure default marker images resolve */
     L.Icon.Default.mergeOptions({
       iconRetinaUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
       iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -127,17 +122,16 @@ html,body,#map{margin:0;height:100%;width:100%;background:#121212;color:#eee;fon
       update(marker.getLatLng());
     });
 
-    /* arrow navigation */
+    /* arrow pad */
     arrows.addEventListener('click',ev=>{
       const dir=ev.target.dataset.dir;if(!dir)return;
       const dx=dir==='left'?-100:dir==='right'?100:0,
             dy=dir==='up'?-100:dir==='down'?100:0;
-      map.panBy([dx,dy],{duration:0.25});
-      ev.stopPropagation();
+      map.panBy([dx,dy],{duration:0.25});ev.stopPropagation();
     });
     L.DomEvent.disableClickPropagation(arrows);
 
-    /* copy coordinates with fallback */
+    /* copy with fallback */
     copyBtn.addEventListener('click',ev=>{
       ev.stopPropagation();
       if(navigator.clipboard?.writeText){
