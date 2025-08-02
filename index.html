@@ -2,75 +2,70 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Hagga Basin Coordinate Tool</title>
+<title>Hagga Basin Map Tool</title>
+
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-Vk614WB2ryqjTiGOGbTV+EGX1kpSerY25/hzp8aAikM="
+      crossorigin=""/>
+
 <style>
-  body { margin:0; font-family:sans-serif; text-align:center; }
-  #wrapper { position:relative; display:inline-block; }
-  #map   { max-width:100%; display:block; }
-  #marker {
-    position:absolute;
-    width:24px; height:24px;
-    margin:-12px 0 0 -12px;          /* center over click */
-    pointer-events:none;             /* ignore mouse so drag works on map */
-    background:url('marker.png') no-repeat center/contain;
-    display:none;
+  html,body { margin:0; height:100%; }
+  #map     { width:100%; height:100%; }
+  #readout {
+    position:absolute; top:8px; left:8px;
+    background:#fff; padding:4px 8px; font:14px monospace;
+    border-radius:4px; pointer-events:none;
   }
-  #readout { margin-top:8px; font-weight:bold; }
 </style>
 </head>
 <body>
 
-<div id="wrapper">
-  <img id="map" src="hagga-basin.png" alt="Map">
-  <div id="marker"></div>
-</div>
+<div id="map"></div>
+<div id="readout">X: – , Y: –</div>
 
-<div id="readout">Click the map</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-p8k8cqk4RD7Ck1a8Ze2Fj8dQ1AR9bVRD1Hrsq5j0CJo="
+        crossorigin=""></script>
 
 <script>
-const img     = document.getElementById('map');
-const marker  = document.getElementById('marker');
+/* hard-code the image’s natural pixel dimensions */
+const imgW = 2048;              /* width  in px */
+const imgH = 3072;              /* height in px */
+
+/* Leaflet uses y,x – the origin is top-left for CRS.Simple */
+const bounds = [[0,0],[imgH,imgW]];
+
+const map = L.map('map',{
+  crs: L.CRS.Simple,
+  minZoom: -2,           /* allow zooming out a bit */
+  maxZoom: 4,
+  attributionControl:false,
+  zoomControl:true
+});
+
+L.imageOverlay('hagga-basin.png', bounds).addTo(map);
+map.fitBounds(bounds);
+
+let pin = null;
 const readout = document.getElementById('readout');
 
-img.addEventListener('click', e => {
-  /* get click relative to displayed image */
-  const rect = img.getBoundingClientRect();
-  const xDisp = e.clientX - rect.left;
-  const yDisp = e.clientY - rect.top;
-
-  /* scale to natural image resolution */
-  const scaleX = img.naturalWidth  / rect.width;
-  const scaleY = img.naturalHeight / rect.height;
-  const x = +(xDisp * scaleX).toFixed(1);
-  const y = +(yDisp * scaleY).toFixed(1);
-
-  /* move marker and show */
-  marker.style.left = `${xDisp}px`;
-  marker.style.top  = `${yDisp}px`;
-  marker.style.display = 'block';
-
+function showCoords(latlng){
+  const x = latlng.lng.toFixed(1);
+  const y = latlng.lat.toFixed(1);
   readout.textContent = `X: ${x} , Y: ${y}`;
-});
+}
 
-/* make marker draggable */
-let drag = false;
-marker.addEventListener('mousedown', () => drag = true);
-window.addEventListener('mouseup',   () => drag = false);
-window.addEventListener('mousemove', e => {
-  if (!drag) return;
-  const rect = img.getBoundingClientRect();
-  let xDisp = e.clientX - rect.left;
-  let yDisp = e.clientY - rect.top;
-  if (xDisp < 0 || yDisp < 0 || xDisp > rect.width || yDisp > rect.height) return;
-
-  marker.style.left = `${xDisp}px`;
-  marker.style.top  = `${yDisp}px`;
-
-  const scaleX = img.naturalWidth  / rect.width;
-  const scaleY = img.naturalHeight / rect.height;
-  readout.textContent = `X: ${(xDisp*scaleX).toFixed(1)} , Y: ${(yDisp*scaleY).toFixed(1)}`;
+/* click without drag places or moves the marker */
+map.on('click', e=>{
+  if (!pin){
+    pin = L.marker(e.latlng,{draggable:true}).addTo(map);
+    pin.on('drag', ev=>showCoords(ev.latlng));
+  }else{
+    pin.setLatLng(e.latlng);
+  }
+  showCoords(e.latlng);
 });
 </script>
-
 </body>
 </html>
