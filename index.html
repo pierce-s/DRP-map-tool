@@ -25,7 +25,6 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
   pointer-events:none;
   cursor:default;
 }
-/* remove little pointer arrow under tooltip */
 .coord-label::before{display:none!important;}
 
 #arrows,#copy{position:absolute;z-index:401}
@@ -42,7 +41,7 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
 #arrows button[data-dir="left"] {grid-area:left}
 #arrows button[data-dir="right"]{grid-area:right}
 #copy{bottom:10px;right:10px;padding:6px 12px;width:auto}
-#copy.flash{background:#145f3c;border-color:#1c7d50;}       /* visual cue */
+#copy.flash{background:#145f3c;border-color:#1c7d50;}
 
 #status{height:16px;text-align:center;font:12px monospace;margin-top:6px;color:#80ff80;}
 </style>
@@ -85,6 +84,13 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
     map.fitBounds(bounds);
     map.setZoom(map.getZoom()+1);
     map.doubleClickZoom.disable();
+
+    // Ensure Leaflet knows where its default marker images are
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+      iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+      shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png'
+    });
 
     let marker=null,lastXY='';
 
