@@ -10,21 +10,19 @@
       crossorigin=""/>
 
 <style>
-/* page & map fill the entire iframe */
+/* map fills the whole iframe */
 html,body,#map{margin:0;height:100%;width:100%;background:#121212;color:#eee;font:14px/1.4 sans-serif;}
 #map{position:relative;cursor:crosshair;}
 
-/* built-in zoom ctrl */
 .leaflet-control-zoom{top:10px;right:10px;left:auto!important;}
 
-/* tooltip above marker tip */
 .coord-label{
-  background:rgba(20,20,20,.85);border:none;color:#fff;
-  font-family:monospace;padding:2px 4px;border-radius:3px;pointer-events:none;
+  background:rgba(20,20,20,.85);border:none;color:#fff;font-family:monospace;
+  padding:2px 4px;border-radius:3px;pointer-events:none;
 }
 .coord-label::before{display:none!important;}
 
-/* overlay ui */
+/* overlay UI */
 #arrows,#copy,#toast{position:absolute;z-index:401}
 #arrows{bottom:10px;left:10px;display:grid;grid-template-areas:
         ". up ."
@@ -40,6 +38,7 @@ html,body,#map{margin:0;height:100%;width:100%;background:#121212;color:#eee;fon
 #copy{bottom:10px;right:10px;padding:6px 12px;width:auto}
 #copy.flash{background:#145f3c;border-color:#1c7d50;}
 
+/* centred toast */
 #toast{top:50%;left:50%;transform:translate(-50%,-50%);
        background:rgba(20,20,20,.9);color:#fff;font:14px monospace;
        padding:8px 14px;border-radius:6px;opacity:0;pointer-events:none;
@@ -68,18 +67,18 @@ html,body,#map{margin:0;height:100%;width:100%;background:#121212;color:#eee;fon
         arrows =document.getElementById('arrows');
 
   /* preload image to get native size */
-  const baseImg = new Image();
-  baseImg.src = imgPath;
-  baseImg.onload = () => init(baseImg.naturalWidth, baseImg.naturalHeight);
+  const im=new Image();
+  im.src=imgPath;
+  im.onload=()=>init(im.naturalWidth,im.naturalHeight);
 
-  /* show and hide toast */
+  /* show / hide toast */
   function showToast(){
     toast.style.opacity='1';
     setTimeout(()=>toast.style.opacity='0',800);
   }
 
-  /* clipboard fallback */
-  function legacyCopy(text){
+  /* fallback copy for sandboxed iframes (execCommand still works) */
+  function fallbackCopy(text){
     const ta=document.createElement('textarea');
     ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
     document.body.appendChild(ta);ta.select();document.execCommand('copy');
@@ -89,7 +88,7 @@ html,body,#map{margin:0;height:100%;width:100%;background:#121212;color:#eee;fon
 
   function init(w,h){
 
-    /* ensure marker images load */
+    /* ensure default pin images load */
     L.Icon.Default.mergeOptions({
       iconRetinaUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
       iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -138,12 +137,12 @@ html,body,#map{margin:0;height:100%;width:100%;background:#121212;color:#eee;fon
     });
     L.DomEvent.disableClickPropagation(arrows);
 
-    /* copy coordinates */
+    /* copy coordinates with fallback */
     copyBtn.addEventListener('click',ev=>{
       ev.stopPropagation();
       if(navigator.clipboard?.writeText){
-        navigator.clipboard.writeText(lastXY).then(showToast,()=>legacyCopy(lastXY));
-      }else legacyCopy(lastXY);
+        navigator.clipboard.writeText(lastXY).then(showToast,()=>fallbackCopy(lastXY));
+      }else fallbackCopy(lastXY);
     });
   }
 })();
