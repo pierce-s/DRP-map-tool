@@ -29,7 +29,7 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
         "left . right"
         ". down .";grid-gap:4px;}
 #arrows button,#copy{background:#1e1e1e;border:1px solid #444;color:#eee;
-                     width:38px;height:38px;border-radius:4px;cursor:pointer;}
+                       width:38px;height:38px;border-radius:4px;cursor:pointer;}
 #arrows button[data-dir="up"]   {grid-area:up}
 #arrows button[data-dir="down"] {grid-area:down}
 #arrows button[data-dir="left"] {grid-area:left}
@@ -60,6 +60,8 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
   <button id="copy" disabled>Copy Coordinates</button>
   <div id="toast">Copied</div>
   <div id="ver">v10</div>
+  
+  <input type="text" id="copy-helper" style="position:absolute; left:-9999px;">
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -68,7 +70,9 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
   const imgPath='hagga-basin.png',
         copyBtn=document.getElementById('copy'),
         toast  =document.getElementById('toast'),
-        arrows =document.getElementById('arrows');
+        arrows =document.getElementById('arrows'),
+        // Get the new helper input
+        copyHelper = document.getElementById('copy-helper');
 
   const base=new Image();
   base.src=imgPath;
@@ -107,6 +111,10 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
       const x=clamp(Math.round(ll.lng),w),
             y=clamp(Math.round(ll.lat),h);
       lastXY=`${x},${y}`;
+      
+      // Also update our helper input's value
+      copyHelper.value = lastXY;
+      
       marker.getTooltip()
         ? marker.setTooltipContent(lastXY)
         : marker.bindTooltip(lastXY,{permanent:true,className:'coord-label',direction:'top'});
@@ -135,7 +143,21 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
     /* copy to clipboard */
     copyBtn.addEventListener('click',ev=>{
       ev.stopPropagation();
-      navigator.clipboard?.writeText(lastXY).then(showToast,showToast);
+      
+      // 1. Select the text in our hidden input
+      copyHelper.select();
+      copyHelper.setSelectionRange(0, 99999); // For mobile device compatibility
+
+      // 2. Execute the copy command
+      try {
+        document.execCommand('copy');
+        showToast(); // Success!
+      } catch (err) {
+        console.error('Could not copy text: ', err);
+      }
+      
+      // 3. Deselect the text
+      window.getSelection()?.removeAllRanges();
     });
   }
 })();
