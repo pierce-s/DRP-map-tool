@@ -12,17 +12,28 @@
 <style>
 html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-serif;}
 #container{width:90vw;max-width:900px;margin:0 auto;padding-top:10px;}
-#map{height:70vh;width:100%;background:#121212;position:relative;}
+#map{height:70vh;width:100%;background:#121212;position:relative;cursor:crosshair;}
+/* force Leaflet to keep panning inside */
+.leaflet-container.leaflet-panning{cursor:grabbing;}
 .leaflet-control-zoom{top:10px;right:10px;left:auto!important;}
-.coord-label{background:rgba(20,20,20,.85);border:none;color:#fff;font-family:monospace;
-             padding:2px 4px;border-radius:3px;}
+.coord-label{background:rgba(20,20,20,.85);border:none;color:#fff;
+             font-family:monospace;padding:2px 4px;border-radius:3px;}
 /* overlay controls */
 #arrows,#copy{position:absolute;z-index:401}
-#arrows{bottom:10px;left:10px;display:grid;grid-template:
-        "up up" "left right" "down down"/auto auto;}
-#arrows button,#copy{background:#1e1e1e;border:1px solid #444;color:#eee;padding:6px 10px;
-                     margin:2px;border-radius:4px;cursor:pointer;}
+#arrows{bottom:10px;left:10px;display:grid;grid-template-areas:
+        ". up ."
+        "left . right"
+        ". down .";grid-gap:4px;}
+#arrows button,#copy{background:#1e1e1e;border:1px solid #444;color:#eee;
+                     padding:6px 10px;border-radius:4px;cursor:pointer;width:38px;height:38px;}
+#arrows button[data-dir="up"]   {grid-area:up}
+#arrows button[data-dir="down"] {grid-area:down}
+#arrows button[data-dir="left"] {grid-area:left}
+#arrows button[data-dir="right"]{grid-area:right}
 #copy{bottom:10px;right:10px}
+.toast{position:absolute;right:20px;bottom:60px;
+       background:rgba(20,20,20,.85);color:#fff;font:12px monospace;
+       padding:4px 8px;border-radius:4px;opacity:0;pointer-events:none;}
 </style>
 </head>
 <body>
@@ -35,7 +46,8 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
       <button data-dir="right">→</button>
       <button data-dir="down">↓</button>
     </div>
-    <button id="copy" disabled>Copy X,Y</button>
+    <button id="copy" disabled>Copy Coordinates</button>
+    <div id="toast" class="toast"></div>
   </div>
 </div>
 
@@ -43,61 +55,71 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
 
 <script>
 (function(){
-  const imgPath='hagga-basin.png';
-  const copyBtn=document.getElementById('copy');
+  const imgPath='hagga-basin.png',
+        copyBtn=document.getElementById('copy'),
+        toast  =document.getElementById('toast'),
+        arrows =document.getElementById('arrows');
 
   const img=new Image();
   img.src=imgPath;
   img.onload=()=>init(img.naturalWidth,img.naturalHeight);
 
   function init(w,h){
-    const bounds=[[0,0],[h,w]],
-          map=L.map('map',{
-            crs:L.CRS.Simple,minZoom:-2,maxZoom:4,
-            attributionControl:false,zoomControl:true,
-            inertia:true,maxBounds:bounds,maxBoundsViscosity:1
-          });
-
+    const bounds=[[0,0],[h,w]];
+    const map=L.map('map',{
+      crs:L.CRS.Simple,minZoom:-2,maxZoom:4,
+      attributionControl:false,zoomControl:true,
+      inertia:true,maxBounds:bounds,maxBoundsViscosity:1
+    });
     L.imageOverlay(imgPath,bounds).addTo(map);
     map.fitBounds(bounds);
+    map.doubleClickZoom.disable();   // prevents arrow double-click zoom
 
     let marker=null,lastXY='';
 
-    function setLabel(latlng){
-      const x=Math.round(latlng.lng), y=Math.round(latlng.lat);
+    /* default Leaflet marker, anchor set to tip */
+    const def=L.Icon.Default.prototype.options;
+    const pin=L.icon({
+      iconUrl:def.iconUrl,iconRetinaUrl:def.iconRetinaUrl,shadowUrl:def.shadowUrl,
+      iconSize:def.iconSize,iconAnchor:[12,41],tooltipAnchor:[12,-8]   // tooltip upper-right, close to tip
+    });
+
+    function updateLabel(latlng){
+      const x=Math.round(latlng.lng),y=Math.round(latlng.lat);
       lastXY=`${x},${y}`;
       if(!marker.getTooltip())
-        marker.bindTooltip('',{permanent:true,className:'coord-label',
-                               direction:'right',offset:[6,-24]});
+        marker.bindTooltip('',{permanent:true,className:'coord-label',direction:'top'});
       marker.setTooltipContent(lastXY);
       copyBtn.disabled=false;
     }
 
     map.on('click',e=>{
       if(!marker){
-        marker=L.marker(e.latlng,{draggable:true}).addTo(map);
-        marker.on('drag',ev=>setLabel(ev.latlng));
+        marker=L.marker(e.latlng,{icon:pin,draggable:true}).addTo(map);
+        marker.on('drag',ev=>updateLabel(ev.latlng));
       }else marker.setLatLng(e.latlng);
-      setLabel(e.latlng);
+      updateLabel(e.latlng);
     });
 
-    /* arrow panning */
+    /* arrow navigation */
     const step=100;
-    document.getElementById('arrows').addEventListener('click',ev=>{
-      const dir=ev.target.dataset.dir;
-      if(!dir)return;
+    arrows.addEventListener('click',ev=>{
+      const dir=ev.target.dataset.dir; if(!dir) return;
       const dx=dir==='left'?-step:dir==='right'?step:0,
             dy=dir==='up'?-step:dir==='down'?step:0;
       map.panBy([dx,dy],{duration:0.25});
     });
+    /* stop dbl-clicks on arrow cluster propagating to map */
+    L.DomEvent.disableClickPropagation(arrows);
 
-    /* copy to clipboard with subtle cue */
+    /* copy to clipboard with toast cue */
+    function showToast(){
+      toast.textContent='Copied!';
+      toast.style.opacity='1';
+      setTimeout(()=>toast.style.opacity='0',800);
+    }
     copyBtn.addEventListener('click',()=>{
-      navigator.clipboard.writeText(lastXY).then(()=>{
-        const old=copyBtn.textContent;
-        copyBtn.textContent='Copied!';
-        setTimeout(()=>copyBtn.textContent=old,1000);
-      });
+      navigator.clipboard.writeText(lastXY).then(showToast);
     });
   }
 })();
