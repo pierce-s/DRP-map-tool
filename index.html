@@ -16,18 +16,12 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
 .leaflet-control-zoom{top:10px;right:10px;left:auto!important;}
 
 .coord-label{
-  background:rgba(20,20,20,.85);
-  border:none;
-  color:#fff;
-  font-family:monospace;
-  padding:2px 4px;
-  border-radius:3px;
-  pointer-events:none;
-  cursor:default;
+  background:rgba(20,20,20,.85);border:none;color:#fff;
+  font-family:monospace;padding:2px 4px;border-radius:3px;pointer-events:none;
 }
 .coord-label::before{display:none!important;}
 
-#arrows,#copy{position:absolute;z-index:401}
+#arrows,#copy,#toast,#ver{position:absolute;z-index:401}
 #arrows{bottom:10px;left:10px;display:grid;grid-template-areas:
         ".   up    ."
         "left  .  right"
@@ -40,10 +34,21 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
 #arrows button[data-dir="down"] {grid-area:down}
 #arrows button[data-dir="left"] {grid-area:left}
 #arrows button[data-dir="right"]{grid-area:right}
+
 #copy{bottom:10px;right:10px;padding:6px 12px;width:auto}
 #copy.flash{background:#145f3c;border-color:#1c7d50;}
 
 #status{height:16px;text-align:center;font:12px monospace;margin-top:6px;color:#80ff80;}
+
+/* centred copied toast */
+#toast{top:50%;left:50%;transform:translate(-50%,-50%);
+       background:rgba(20,20,20,.9);color:#fff;font:14px monospace;
+       padding:8px 14px;border-radius:6px;opacity:0;pointer-events:none;
+       transition:opacity .2s linear;}
+
+/* version tag */
+#ver{bottom:10px;left:10px;transform:translateY(44px);
+     font-size:11px;color:#ccc;font-family:monospace;pointer-events:none;}
 </style>
 </head>
 <body>
@@ -57,6 +62,8 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
       <button data-dir="down">↓</button>
     </div>
     <button id="copy" disabled>Copy Coordinates</button>
+    <div id="toast">Copied</div>
+    <div id="ver">v7</div>
   </div>
   <div id="status"></div>
 </div>
@@ -66,12 +73,23 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
 (function(){
   const imgPath='hagga-basin.png',
         copyBtn=document.getElementById('copy'),
+        toast  =document.getElementById('toast'),
         status =document.getElementById('status'),
         arrows =document.getElementById('arrows');
 
   const img=new Image();
   img.src=imgPath;
   img.onload=()=>init(img.naturalWidth,img.naturalHeight);
+
+  /* toast helpers */
+  const showToast=()=>{ toast.style.opacity='1'; setTimeout(()=>toast.style.opacity='0',800); };
+  const fallbackCopy=text=>{
+    const ta=document.createElement('textarea');
+    ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast();
+  };
 
   function init(w,h){
     const bounds=[[0,0],[h,w]];
@@ -85,22 +103,15 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
     map.setZoom(map.getZoom()+1);
     map.doubleClickZoom.disable();
 
-    // Ensure Leaflet knows where its default marker images are
+    /* default marker images */
     L.Icon.Default.mergeOptions({
-      iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-      iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-      shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png'
+      iconRetinaUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+      iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+      shadowUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png'
     });
 
     let marker=null,lastXY='';
-
-    const def=L.Icon.Default.prototype.options;
-    const pin=L.icon({
-      iconUrl:def.iconUrl,iconRetinaUrl:def.iconRetinaUrl,shadowUrl:def.shadowUrl,
-      iconSize:def.iconSize,iconAnchor:[12,41],tooltipAnchor:[0,-24]
-    });
-
-    function clamp(v,max){return Math.max(0,Math.min(max,v));}
+    const clamp=(v,max)=>Math.max(0,Math.min(max,v));
 
     function update(latlng){
       const x=clamp(Math.round(latlng.lng),w),
@@ -108,16 +119,15 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
       lastXY=`${x},${y}`;
       if(!marker.getTooltip())
         marker.bindTooltip(lastXY,{permanent:true,className:'coord-label',direction:'top'});
-      else
-        marker.setTooltipContent(lastXY);
+      else marker.setTooltipContent(lastXY);
       copyBtn.disabled=false;
     }
 
     map.on('click',e=>{
       const ll=[clamp(e.latlng.lat,h),clamp(e.latlng.lng,w)];
       if(!marker){
-        marker=L.marker(ll,{icon:pin,draggable:true}).addTo(map)
-                .on('drag',ev=>update(ev.latlng));
+        marker=L.marker(ll,{draggable:true}).addTo(map)
+               .on('drag',ev=>update(ev.latlng));
       }else marker.setLatLng(ll);
       update(marker.getLatLng());
     });
@@ -134,14 +144,9 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
 
     copyBtn.addEventListener('click',ev=>{
       ev.stopPropagation();
-      navigator.clipboard.writeText(lastXY).then(()=>{
-        copyBtn.classList.add('flash');
-        status.textContent='Coordinates copied';
-        setTimeout(()=>{
-          copyBtn.classList.remove('flash');
-          status.textContent='';
-        },800);
-      });
+      if(navigator.clipboard?.writeText){
+        navigator.clipboard.writeText(lastXY).then(showToast,()=>fallbackCopy(lastXY));
+      }else fallbackCopy(lastXY);
     });
   }
 })();
