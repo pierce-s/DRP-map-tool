@@ -26,15 +26,12 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
         ".   up    ."
         "left  .  right"
         ".  down   .";grid-gap:4px;}
-#arrows button,#copy{
-  background:#1e1e1e;border:1px solid #444;color:#eee;
-  width:38px;height:38px;border-radius:4px;cursor:pointer;
-}
+#arrows button,#copy{background:#1e1e1e;border:1px solid #444;color:#eee;
+                     width:38px;height:38px;border-radius:4px;cursor:pointer;}
 #arrows button[data-dir="up"]   {grid-area:up}
 #arrows button[data-dir="down"] {grid-area:down}
 #arrows button[data-dir="left"] {grid-area:left}
 #arrows button[data-dir="right"]{grid-area:right}
-
 #copy{bottom:10px;right:10px;padding:6px 12px;width:auto}
 #copy.flash{background:#145f3c;border-color:#1c7d50;}
 
@@ -46,9 +43,9 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
        padding:8px 14px;border-radius:6px;opacity:0;pointer-events:none;
        transition:opacity .2s linear;}
 
-/* version tag */
+/* version text */
 #ver{bottom:10px;left:10px;transform:translateY(44px);
-     font-size:11px;color:#ccc;font-family:monospace;pointer-events:none;}
+     font-size:11px;color:#ddd;font-family:monospace;pointer-events:none;}
 </style>
 </head>
 <body>
@@ -63,7 +60,7 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
     </div>
     <button id="copy" disabled>Copy Coordinates</button>
     <div id="toast">Copied</div>
-    <div id="ver">v7</div>
+    <div id="ver">v8</div>
   </div>
   <div id="status"></div>
 </div>
@@ -73,23 +70,19 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
 (function(){
   const imgPath='hagga-basin.png',
         copyBtn=document.getElementById('copy'),
-        toast  =document.getElementById('toast'),
         status =document.getElementById('status'),
+        toast  =document.getElementById('toast'),
         arrows =document.getElementById('arrows');
 
   const img=new Image();
   img.src=imgPath;
   img.onload=()=>init(img.naturalWidth,img.naturalHeight);
 
-  /* toast helpers */
-  const showToast=()=>{ toast.style.opacity='1'; setTimeout(()=>toast.style.opacity='0',800); };
-  const fallbackCopy=text=>{
-    const ta=document.createElement('textarea');
-    ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
-    document.body.appendChild(ta);ta.select();document.execCommand('copy');
-    document.body.removeChild(ta);
-    showToast();
-  };
+  /* toast helper */
+  function showToast(){
+    toast.style.opacity='1';
+    setTimeout(()=>toast.style.opacity='0',800);
+  }
 
   function init(w,h){
     const bounds=[[0,0],[h,w]];
@@ -103,7 +96,6 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
     map.setZoom(map.getZoom()+1);
     map.doubleClickZoom.disable();
 
-    /* default marker images */
     L.Icon.Default.mergeOptions({
       iconRetinaUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
       iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -111,6 +103,11 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
     });
 
     let marker=null,lastXY='';
+    const def=L.Icon.Default.prototype.options;
+    const pin=L.icon({
+      iconUrl:def.iconUrl,iconRetinaUrl:def.iconRetinaUrl,shadowUrl:def.shadowUrl,
+      iconSize:def.iconSize,iconAnchor:[12,41],tooltipAnchor:[0,-24]
+    });
     const clamp=(v,max)=>Math.max(0,Math.min(max,v));
 
     function update(latlng){
@@ -126,7 +123,7 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
     map.on('click',e=>{
       const ll=[clamp(e.latlng.lat,h),clamp(e.latlng.lng,w)];
       if(!marker){
-        marker=L.marker(ll,{draggable:true}).addTo(map)
+        marker=L.marker(ll,{icon:pin,draggable:true}).addTo(map)
                .on('drag',ev=>update(ev.latlng));
       }else marker.setLatLng(ll);
       update(marker.getLatLng());
@@ -144,9 +141,15 @@ html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-
 
     copyBtn.addEventListener('click',ev=>{
       ev.stopPropagation();
-      if(navigator.clipboard?.writeText){
-        navigator.clipboard.writeText(lastXY).then(showToast,()=>fallbackCopy(lastXY));
-      }else fallbackCopy(lastXY);
+      navigator.clipboard.writeText(lastXY).then(()=>{
+        copyBtn.classList.add('flash');
+        status.textContent='Coordinates copied';
+        showToast();
+        setTimeout(()=>{
+          copyBtn.classList.remove('flash');
+          status.textContent='';
+        },800);
+      },()=>{ /* clipboard fail silently */ });
     });
   }
 })();
