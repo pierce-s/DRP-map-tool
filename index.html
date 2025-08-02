@@ -10,27 +10,22 @@
       crossorigin=""/>
 
 <style>
-html,body{margin:0;height:100%;width:100%;background:#121212;color:#eee;font:14px/1.4 sans-serif;}
-#map{height:100%;width:100%;background:#121212;position:relative;cursor:crosshair;}
-
+html,body,#map{margin:0;height:100%;width:100%;background:#121212;color:#eee;font:14px/1.4 sans-serif;}
+#map{position:relative;cursor:crosshair;}
 .leaflet-control-zoom{top:10px;right:10px;left:auto!important;}
 
-.coord-label{
-  background:rgba(20,20,20,.85);border:none;color:#fff;font-family:monospace;
-  padding:2px 4px;border-radius:3px;pointer-events:none;cursor:default;
-}
+.coord-label{background:rgba(20,20,20,.85);border:none;color:#fff;
+             font-family:monospace;padding:2px 4px;border-radius:3px;pointer-events:none;}
 .coord-label::before{display:none!important;}
 
-#arrows,#copy,#status{position:absolute;z-index:401}
+#arrows,#copy,#toast{position:absolute;z-index:401}
 
 #arrows{bottom:10px;left:10px;display:grid;grid-template-areas:
-        ".   up    ."
-        "left  .  right"
-        ".  down   .";grid-gap:4px;}
-#arrows button,#copy{
-  background:#1e1e1e;border:1px solid #444;color:#eee;
-  width:38px;height:38px;border-radius:4px;cursor:pointer;
-}
+        ". up ."
+        "left . right"
+        ". down .";grid-gap:4px;}
+#arrows button,#copy{background:#1e1e1e;border:1px solid #444;color:#eee;
+                     width:38px;height:38px;border-radius:4px;cursor:pointer;}
 #arrows button[data-dir="up"]   {grid-area:up}
 #arrows button[data-dir="down"] {grid-area:down}
 #arrows button[data-dir="left"] {grid-area:left}
@@ -39,8 +34,10 @@ html,body{margin:0;height:100%;width:100%;background:#121212;color:#eee;font:14p
 #copy{bottom:10px;right:10px;padding:6px 12px;width:auto}
 #copy.flash{background:#145f3c;border-color:#1c7d50;}
 
-#status{bottom:10px;left:50%;transform:translateX(-50%);
-        font:12px monospace;color:#80ff80;height:auto;pointer-events:none;}
+#toast{top:50%;left:50%;transform:translate(-50%,-50%);
+       background:rgba(20,20,20,.9);color:#fff;font:14px monospace;
+       padding:8px 14px;border-radius:6px;opacity:0;pointer-events:none;
+       transition:opacity .2s linear;}
 </style>
 </head>
 <body>
@@ -53,7 +50,7 @@ html,body{margin:0;height:100%;width:100%;background:#121212;color:#eee;font:14p
     <button data-dir="down">↓</button>
   </div>
   <button id="copy" disabled>Copy Coordinates</button>
-  <div id="status"></div>
+  <div id="toast">Copied</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -61,12 +58,28 @@ html,body{margin:0;height:100%;width:100%;background:#121212;color:#eee;font:14p
 (function(){
   const imgPath='hagga-basin.png',
         copyBtn=document.getElementById('copy'),
-        status =document.getElementById('status'),
+        toast  =document.getElementById('toast'),
         arrows =document.getElementById('arrows');
 
-  const img=new Image();
-  img.src=imgPath;
-  img.onload=()=>init(img.naturalWidth,img.naturalHeight);
+  new Image().src = imgPath;   // start preload
+
+  function showToast(){
+    toast.style.opacity='1';
+    setTimeout(()=>toast.style.opacity='0',800);
+  }
+
+  function fallbackCopy(text){
+    const ta=document.createElement('textarea');
+    ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast();
+  }
+
+  fetch(imgPath).then(r=>r.blob()).then(b=>{
+    const tmp=new Image();tmp.onload=()=>init(tmp.naturalWidth,tmp.naturalHeight);
+    tmp.src=URL.createObjectURL(b);
+  });
 
   function init(w,h){
     const bounds=[[0,0],[h,w]];
@@ -76,9 +89,7 @@ html,body{margin:0;height:100%;width:100%;background:#121212;color:#eee;font:14p
       inertia:true,maxBounds:bounds,maxBoundsViscosity:1
     });
     L.imageOverlay(imgPath,bounds).addTo(map);
-    map.fitBounds(bounds);
-    map.setZoom(map.getZoom()+1);
-    map.doubleClickZoom.disable();
+    map.fitBounds(bounds); map.setZoom(map.getZoom()+1); map.doubleClickZoom.disable();
 
     L.Icon.Default.mergeOptions({
       iconRetinaUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -86,15 +97,8 @@ html,body{margin:0;height:100%;width:100%;background:#121212;color:#eee;font:14p
       shadowUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png'
     });
 
-    let marker=null,lastXY='';
-
-    const def=L.Icon.Default.prototype.options;
-    const pin=L.icon({
-      iconUrl:def.iconUrl,iconRetinaUrl:def.iconRetinaUrl,shadowUrl:def.shadowUrl,
-      iconSize:def.iconSize,iconAnchor:[12,41],tooltipAnchor:[0,-24]
-    });
-
     const clamp=(v,max)=>Math.max(0,Math.min(max,v));
+    let marker=null,lastXY='';
 
     function update(latlng){
       const x=clamp(Math.round(latlng.lng),w),
@@ -109,32 +113,25 @@ html,body{margin:0;height:100%;width:100%;background:#121212;color:#eee;font:14p
     map.on('click',e=>{
       const ll=[clamp(e.latlng.lat,h),clamp(e.latlng.lng,w)];
       if(!marker){
-        marker=L.marker(ll,{icon:pin,draggable:true}).addTo(map)
+        marker=L.marker(ll,{draggable:true}).addTo(map)
                .on('drag',ev=>update(ev.latlng));
       }else marker.setLatLng(ll);
       update(marker.getLatLng());
     });
 
-    const step=100;
     arrows.addEventListener('click',ev=>{
       const dir=ev.target.dataset.dir;if(!dir)return;
-      const dx=dir==='left'?-step:dir==='right'?step:0,
-            dy=dir==='up'?-step:dir==='down'?step:0;
-      map.panBy([dx,dy],{duration:0.25});
-      ev.stopPropagation();
+      const dx=dir==='left'?-100:dir==='right'?100:0,
+            dy=dir==='up'?-100:dir==='down'?100:0;
+      map.panBy([dx,dy],{duration:0.25});ev.stopPropagation();
     });
     L.DomEvent.disableClickPropagation(arrows);
 
     copyBtn.addEventListener('click',ev=>{
       ev.stopPropagation();
-      navigator.clipboard.writeText(lastXY).then(()=>{
-        copyBtn.classList.add('flash');
-        status.textContent='Coordinates copied';
-        setTimeout(()=>{
-          copyBtn.classList.remove('flash');
-          status.textContent='';
-        },800);
-      });
+      (navigator.clipboard?.writeText
+        ? navigator.clipboard.writeText(lastXY).then(showToast,()=>fallbackCopy(lastXY))
+        : fallbackCopy(lastXY));
     });
   }
 })();
