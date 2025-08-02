@@ -2,70 +2,79 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Hagga Basin Map Tool</title>
+<title>Hagga Basin Coordinate Tool</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
+<!-- Leaflet CSS -->
 <link rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-Vk614WB2ryqjTiGOGbTV+EGX1kpSerY25/hzp8aAikM="
       crossorigin=""/>
 
 <style>
-  html,body { margin:0; height:100%; }
-  #map     { width:100%; height:100%; }
-  #readout {
-    position:absolute; top:8px; left:8px;
-    background:#fff; padding:4px 8px; font:14px monospace;
-    border-radius:4px; pointer-events:none;
+  html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-serif;}
+  #map{height:100%;width:100%;}
+  #readout{
+    position:absolute;top:10px;left:10px;
+    background:rgba(20,20,20,.85);padding:4px 8px;border-radius:4px;
+    font-family:monospace;pointer-events:none;
   }
 </style>
 </head>
 <body>
 
 <div id="map"></div>
-<div id="readout">X: – , Y: –</div>
+<div id="readout">– , –</div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-p8k8cqk4RD7Ck1a8Ze2Fj8dQ1AR9bVRD1Hrsq5j0CJo="
-        crossorigin=""></script>
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
 <script>
-/* hard-code the image’s natural pixel dimensions */
-const imgW = 1042;              /* width  in px */
-const imgH = 1041;              /* height in px */
+(function(){
+  const imgPath = 'hagga-basin.png';        // image file in repo root
+  const readout = document.getElementById('readout');
 
-/* Leaflet uses y,x – the origin is top-left for CRS.Simple */
-const bounds = [[0,0],[imgH,imgW]];
+  /* Load image to discover native width/height */
+  const img = new Image();
+  img.src   = imgPath;
+  img.onload = () => init(img.naturalWidth, img.naturalHeight);
 
-const map = L.map('map',{
-  crs: L.CRS.Simple,
-  minZoom: -2,           /* allow zooming out a bit */
-  maxZoom: 4,
-  attributionControl:false,
-  zoomControl:true
-});
+  function init(width, height){
+    /* Leaflet CRS.Simple uses [y,x] order (lat, lng) */
+    const bounds = [[0,0], [height, width]];
 
-L.imageOverlay('hagga-basin.png', bounds).addTo(map);
-map.fitBounds(bounds);
+    const map = L.map('map',{
+      crs: L.CRS.Simple,
+      minZoom: -2,
+      maxZoom: 4,
+      attributionControl: false,
+      zoomControl: true,
+      inertia: true
+    });
 
-let pin = null;
-const readout = document.getElementById('readout');
+    L.imageOverlay(imgPath, bounds).addTo(map);
+    map.fitBounds(bounds);
 
-function showCoords(latlng){
-  const x = latlng.lng.toFixed(1);
-  const y = latlng.lat.toFixed(1);
-  readout.textContent = `X: ${x} , Y: ${y}`;
-}
+    let marker = null;
 
-/* click without drag places or moves the marker */
-map.on('click', e=>{
-  if (!pin){
-    pin = L.marker(e.latlng,{draggable:true}).addTo(map);
-    pin.on('drag', ev=>showCoords(ev.latlng));
-  }else{
-    pin.setLatLng(e.latlng);
+    function showCoords(latlng){
+      /* lng = X (pixel), lat = Y (pixel) */
+      const x = Math.round(latlng.lng);
+      const y = Math.round(latlng.lat);
+      readout.textContent = `${x},${y}`;
+    }
+
+    /* Single click drops or moves marker */
+    map.on('click', e => {
+      if(!marker){
+        marker = L.marker(e.latlng,{draggable:true}).addTo(map);
+        marker.on('drag', ev => showCoords(ev.latlng));
+      } else {
+        marker.setLatLng(e.latlng);
+      }
+      showCoords(e.latlng);
+    });
   }
-  showCoords(e.latlng);
-});
+})();
 </script>
 </body>
 </html>
