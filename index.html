@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hagga Basin Coordinate Tool</title>
+<style>
+  body { margin:0; font-family:sans-serif; text-align:center; }
+  #wrapper { position:relative; display:inline-block; }
+  #map   { max-width:100%; display:block; }
+  #marker {
+    position:absolute;
+    width:24px; height:24px;
+    margin:-12px 0 0 -12px;          /* center over click */
+    pointer-events:none;             /* ignore mouse so drag works on map */
+    background:url('marker.png') no-repeat center/contain;
+    display:none;
+  }
+  #readout { margin-top:8px; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<div id="wrapper">
+  <img id="map" src="hagga-basin.jpg" alt="Map">
+  <div id="marker"></div>
+</div>
+
+<div id="readout">Click the map</div>
+
+<script>
+const img     = document.getElementById('map');
+const marker  = document.getElementById('marker');
+const readout = document.getElementById('readout');
+
+img.addEventListener('click', e => {
+  /* get click relative to displayed image */
+  const rect = img.getBoundingClientRect();
+  const xDisp = e.clientX - rect.left;
+  const yDisp = e.clientY - rect.top;
+
+  /* scale to natural image resolution */
+  const scaleX = img.naturalWidth  / rect.width;
+  const scaleY = img.naturalHeight / rect.height;
+  const x = +(xDisp * scaleX).toFixed(1);
+  const y = +(yDisp * scaleY).toFixed(1);
+
+  /* move marker and show */
+  marker.style.left = `${xDisp}px`;
+  marker.style.top  = `${yDisp}px`;
+  marker.style.display = 'block';
+
+  readout.textContent = `X: ${x} , Y: ${y}`;
+});
+
+/* make marker draggable */
+let drag = false;
+marker.addEventListener('mousedown', () => drag = true);
+window.addEventListener('mouseup',   () => drag = false);
+window.addEventListener('mousemove', e => {
+  if (!drag) return;
+  const rect = img.getBoundingClientRect();
+  let xDisp = e.clientX - rect.left;
+  let yDisp = e.clientY - rect.top;
+  if (xDisp < 0 || yDisp < 0 || xDisp > rect.width || yDisp > rect.height) return;
+
+  marker.style.left = `${xDisp}px`;
+  marker.style.top  = `${yDisp}px`;
+
+  const scaleX = img.naturalWidth  / rect.width;
+  const scaleY = img.naturalHeight / rect.height;
+  readout.textContent = `X: ${(xDisp*scaleX).toFixed(1)} , Y: ${(yDisp*scaleY).toFixed(1)}`;
+});
+</script>
+
+</body>
+</html>
