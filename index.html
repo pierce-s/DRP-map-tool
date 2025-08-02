@@ -2,76 +2,79 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Hagga Basin Coordinate Tool</title>
+<title>Hagga Basin Map Tool</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- Leaflet CSS -->
 <link rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       crossorigin=""/>
 
 <style>
   html,body{margin:0;height:100%;background:#121212;color:#eee;font:14px/1.4 sans-serif;}
-  #map{height:100%;width:100%;}
-  #readout{
-    position:absolute;top:10px;left:10px;
-    background:rgba(20,20,20,.85);padding:4px 8px;border-radius:4px;
-    font-family:monospace;pointer-events:none;
+  #map{height:100%;width:100%;background:#121212;}          /* dark backdrop */
+  .leaflet-control-zoom{top:10px;right:10px;left:auto;}     /* move zoom buttons */
+  .coord-label{
+      background:rgba(20,20,20,.85);
+      border:none;
+      color:#fff;
+      font-family:monospace;
+      padding:2px 4px;
+      border-radius:3px;
   }
 </style>
 </head>
 <body>
 
 <div id="map"></div>
-<div id="readout">– , –</div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
 <script>
 (function(){
-  const imgPath = 'hagga-basin.png';        // image file in repo root
-  const readout = document.getElementById('readout');
+  const imgPath='hagga-basin.png';
 
-  /* Load image to discover native width/height */
-  const img = new Image();
-  img.src   = imgPath;
-  img.onload = () => init(img.naturalWidth, img.naturalHeight);
+  const img=new Image();
+  img.src=imgPath;
+  img.onload=()=>init(img.naturalWidth,img.naturalHeight);
 
-  function init(width, height){
-    /* Leaflet CRS.Simple uses [y,x] order (lat, lng) */
-    const bounds = [[0,0], [height, width]];
-
-    const map = L.map('map',{
+  function init(w,h){
+    const bounds=[[0,0],[h,w]];
+    const map=L.map('map',{
       crs: L.CRS.Simple,
-      minZoom: -2,
-      maxZoom: 4,
-      attributionControl: false,
-      zoomControl: true,
-      inertia: true
+      minZoom:-2,
+      maxZoom:4,
+      attributionControl:false,
+      zoomControl:true,
+      inertia:true
     });
 
-    L.imageOverlay(imgPath, bounds).addTo(map);
+    L.imageOverlay(imgPath,bounds).addTo(map);
     map.fitBounds(bounds);
 
-    let marker = null;
+    let marker=null;
 
-    function showCoords(latlng){
-      /* lng = X (pixel), lat = Y (pixel) */
-      const x = Math.round(latlng.lng);
-      const y = Math.round(latlng.lat);
-      readout.textContent = `${x},${y}`;
+    function updateCoords(latlng){
+      const x=Math.round(latlng.lng);
+      const y=Math.round(latlng.lat);
+      if(!marker.getTooltip()){
+        marker.bindTooltip('',{
+          permanent:true,
+          direction:'right',
+          offset:[10,-10],
+          className:'coord-label'
+        });
+      }
+      marker.setTooltipContent(`${x},${y}`);
     }
 
-    /* Single click drops or moves marker */
-    map.on('click', e => {
+    map.on('click',e=>{
       if(!marker){
-        marker = L.marker(e.latlng,{draggable:true}).addTo(map);
-        marker.on('drag', ev => showCoords(ev.latlng));
-      } else {
+        marker=L.marker(e.latlng,{draggable:true}).addTo(map);
+        marker.on('drag',ev=>updateCoords(ev.latlng));
+      }else{
         marker.setLatLng(e.latlng);
       }
-      showCoords(e.latlng);
+      updateCoords(e.latlng);
     });
   }
 })();
